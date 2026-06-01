@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit real values.
+
+environment    = "dev"
+aws_region     = "eu-central-1"
+aws_account_id = "YOUR_AWS_ACCOUNT_ID"
+
+lambda_log_retention_days       = 7
+dynamodb_point_in_time_recovery = false
+lambda_reserved_concurrency     = -1

@@ -1,0 +1,8 @@
+# Copy to backend.tfvars and fill in your values.
+# backend.tfvars is gitignored — never commit real values.
+
+bucket         = "YOUR_ACCOUNT_ID-hospitality-ai-tf-state"
+key            = "dev/terraform.tfstate"
+region         = "eu-central-1"
+dynamodb_table = "hospitality-ai-tf-locks"
+encrypt        = true

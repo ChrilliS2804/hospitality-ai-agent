@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hospitality-shared"
+version = "0.1.0"
+description = "Shared library for the Hospitality AI Agent platform"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3==1.43.18",
+    "pydantic==2.13.4",
+    "aws-xray-sdk==2.14.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hospitality_shared*"]

@@ -9,11 +9,11 @@ output "instance_arn" {
 }
 
 output "contact_flow_id" {
-  description = "Inbound contact flow ID"
-  value       = aws_connect_contact_flow.inbound.contact_flow_id
+  description = "Inbound contact flow ID (set manually after console creation)"
+  value       = "MANUAL_SETUP_REQUIRED"
 }
 
 output "contact_flow_arn" {
-  description = "Inbound contact flow ARN"
-  value       = aws_connect_contact_flow.inbound.arn
+  description = "Inbound contact flow ARN (set manually after console creation)"
+  value       = "MANUAL_SETUP_REQUIRED"
 }

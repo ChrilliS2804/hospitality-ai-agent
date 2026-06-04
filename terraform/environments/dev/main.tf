@@ -23,12 +23,32 @@ provider "aws" {
 
 # ── Variables (re-declared here; values from terraform.tfvars) ────────────────
 
-variable "environment" { type = string }
-variable "aws_region" { type = string }
-variable "aws_account_id" { type = string }
-variable "lambda_log_retention_days" { type = number; default = 7 }
-variable "dynamodb_point_in_time_recovery" { type = bool; default = false }
-variable "lambda_reserved_concurrency" { type = number; default = -1 }
+variable "environment" {
+  type = string
+}
+
+variable "aws_region" {
+  type = string
+}
+
+variable "aws_account_id" {
+  type = string
+}
+
+variable "lambda_log_retention_days" {
+  type    = number
+  default = 7
+}
+
+variable "dynamodb_point_in_time_recovery" {
+  type    = bool
+  default = false
+}
+
+variable "lambda_reserved_concurrency" {
+  type    = number
+  default = -1
+}
 
 locals {
   common_tags = {
@@ -129,7 +149,18 @@ module "connect" {
 
 # ── Outputs ───────────────────────────────────────────────────────────────────
 
-output "dynamodb_table_name" { value = module.dynamodb.table_name }
-output "call_handler_function_name" { value = module.lambda.call_handler_name }
-output "connect_instance_id" { value = module.connect.instance_id }
-output "lambda_packages_bucket" { value = aws_s3_bucket.lambda_packages.bucket }
+output "dynamodb_table_name" {
+  value = module.dynamodb.table_name
+}
+
+output "call_handler_function_name" {
+  value = module.lambda.call_handler_name
+}
+
+output "connect_instance_id" {
+  value = module.connect.instance_id
+}
+
+output "lambda_packages_bucket" {
+  value = aws_s3_bucket.lambda_packages.bucket
+}

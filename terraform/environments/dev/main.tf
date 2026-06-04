@@ -50,6 +50,12 @@ variable "lambda_reserved_concurrency" {
   default = -1
 }
 
+variable "create_layer" {
+  description = "Set to true after shared-layer.zip has been uploaded to S3"
+  type        = bool
+  default     = true
+}
+
 locals {
   common_tags = {
     Project     = "hospitality-ai"
@@ -135,6 +141,7 @@ module "lambda" {
   log_retention_days                = var.lambda_log_retention_days
   reserved_concurrency_call_handler = var.lambda_reserved_concurrency
   xray_enabled                      = true
+  create_layer                      = var.create_layer
   tags                              = local.common_tags
 }
 

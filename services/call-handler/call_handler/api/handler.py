@@ -25,15 +25,15 @@ from hospitality_shared.infrastructure.logging.logger import get_logger
 logger = get_logger("call-handler")
 
 _GREETING = (
-    "Hello, thank you for calling. I'm your AI assistant. "
-    "I can help you make, change, or cancel a reservation, "
-    "or answer questions about our restaurant. "
-    "How can I help you today?"
+    "Hallo, vielen Dank für Ihren Anruf. Ich bin Ihr KI-Assistent. "
+    "Ich kann Ihnen helfen, eine Reservierung vorzunehmen, zu ändern "
+    "oder zu stornieren, oder Fragen zu unserem Restaurant beantworten. "
+    "Wie kann ich Ihnen helfen?"
 )
 
 _ERROR_RESPONSE = (
-    "I'm sorry, I'm having trouble right now. "
-    "Please hold while I connect you to a team member."
+    "Es tut mir leid, es gibt gerade ein technisches Problem. "
+    "Bitte rufen Sie später noch einmal an."
 )
 
 

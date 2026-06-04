@@ -6,7 +6,8 @@
 resource "aws_cloudwatch_log_group" "call_handler" {
   name              = "/aws/lambda/${var.name_prefix}-call-handler"
   retention_in_days = var.log_retention_days
-  kms_key_id        = var.kms_key_arn
+  # KMS encryption added in Sprint 6 hardening after key policy propagation
+  # kms_key_id = var.kms_key_arn
   tags              = var.tags
 }
 
@@ -14,7 +15,7 @@ resource "aws_cloudwatch_log_group" "call_handler" {
 
 resource "aws_lambda_function" "call_handler" {
   function_name = "${var.name_prefix}-call-handler"
-  description   = "Orchestrator Lambda — handles Amazon Connect inbound calls"
+  description   = "Orchestrator Lambda - handles Amazon Connect inbound calls"
   role          = aws_iam_role.call_handler.arn
 
   s3_bucket = var.lambda_packages_bucket
@@ -25,7 +26,7 @@ resource "aws_lambda_function" "call_handler" {
   timeout       = 29   # Connect timeout is ~30s; stay under it
   memory_size   = 512  # Tuned in Sprint 6 based on metrics
 
-  layers = [aws_lambda_layer_version.shared.arn]
+  layers = var.create_layer ? [aws_lambda_layer_version.shared[0].arn] : []
 
   environment {
     variables = {

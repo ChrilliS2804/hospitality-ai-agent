@@ -1,4 +1,4 @@
-# VPC with private subnets only — Lambda functions run in private subnets
+# VPC with private subnets only - Lambda functions run in private subnets
 # VPC endpoints replace NAT gateway for AWS service access (cost-efficient)
 
 resource "aws_vpc" "main" {
@@ -19,7 +19,7 @@ resource "aws_subnet" "private" {
 # Security group for Lambda functions
 resource "aws_security_group" "lambda" {
   name        = "${var.name_prefix}-lambda-sg"
-  description = "Security group for Lambda functions — egress to VPC endpoints only"
+  description = "Security group for Lambda functions - egress to VPC endpoints only"
   vpc_id      = aws_vpc.main.id
 
   egress {

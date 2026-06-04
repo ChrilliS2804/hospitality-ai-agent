@@ -14,6 +14,6 @@ output "call_handler_invoke_arn" {
 }
 
 output "shared_layer_arn" {
-  description = "ARN of the shared Lambda layer"
-  value       = aws_lambda_layer_version.shared.arn
+  description = "ARN of the shared Lambda layer (empty string if not yet created)"
+  value       = var.create_layer ? aws_lambda_layer_version.shared[0].arn : ""
 }

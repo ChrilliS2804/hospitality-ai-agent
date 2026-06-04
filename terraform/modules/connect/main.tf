@@ -21,7 +21,7 @@ resource "aws_connect_lambda_function_association" "call_handler" {
 resource "aws_connect_contact_flow" "inbound" {
   instance_id = aws_connect_instance.main.id
   name        = "${var.name_prefix}-inbound-flow"
-  description = "Main inbound contact flow — routes calls to AI agent Lambda"
+  description = "Main inbound contact flow - routes calls to AI agent Lambda"
   type        = "CONTACT_FLOW"
   content     = local.contact_flow_content
   tags        = var.tags

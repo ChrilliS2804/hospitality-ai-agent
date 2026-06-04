@@ -65,7 +65,7 @@ data "aws_iam_policy_document" "call_handler_policy" {
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
     ]
-    resources = ["arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"]
+    resources = ["arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.*"]
   }
 
   # Lambda — invoke downstream services

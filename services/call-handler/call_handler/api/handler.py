@@ -53,7 +53,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     session_id = connect_event.session_id
     tenant_id = connect_event.tenant_id
-    caller_phone = connect_event.ContactData.caller_phone
+    caller_phone = connect_event.contact_data.caller_phone
 
     logger.bind(session_id=session_id, tenant_id=tenant_id)
     logger.info("Inbound call received", caller_phone=caller_phone)
@@ -87,5 +87,5 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     return ConnectResponse(
         response=response_text,
         action="continue",
-        session_attributes={"session_id": session_id, "tenant_id": tenant_id},
+        session_attributes={},
     ).to_dict()

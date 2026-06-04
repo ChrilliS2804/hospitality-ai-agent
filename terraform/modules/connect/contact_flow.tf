@@ -1,120 +1,172 @@
-# Contact Flow definition (JSON)
-# Sprint 1 flow: Set tenant attribute → Invoke Lambda → Speak response → Loop
-# The flow loops back to Lambda on each caller utterance, enabling multi-turn
-# conversation. Lambda controls termination via the 'action' field in its response.
+# Contact Flow definition (JSON) - Amazon Connect Contact Flow format
+# Sprint 1: Set tenant → Invoke Lambda → Speak response → Get input → Loop
+# Uses the current Amazon Connect Contact Flow JSON schema (2019-10-30)
 
 locals {
   contact_flow_content = jsonencode({
     Version     = "2019-10-30"
     StartAction = "set-tenant-attribute"
     Actions = [
-      # Step 1: Set tenant_id as a contact attribute
-      # In production this would be set based on the dialled number (DID routing)
       {
         Identifier = "set-tenant-attribute"
         Type       = "UpdateContactAttributes"
         Parameters = {
           Attributes = {
-            tenant_id = "default"
+            tenant_id = {
+              Value = "default"
+            }
           }
         }
         Transitions = {
-          Success = "invoke-lambda"
-          Error   = "error-prompt"
+          NextAction = "invoke-lambda"
+          Errors     = []
+          Conditions = []
         }
       },
-
-      # Step 2: Invoke the call handler Lambda
       {
         Identifier = "invoke-lambda"
         Type       = "InvokeLambdaFunction"
         Parameters = {
-          LambdaFunctionARN = var.call_handler_lambda_invoke_arn
-          InvocationTimeLimitSeconds = "8"
+          LambdaFunctionARN = {
+            Value = var.call_handler_lambda_invoke_arn
+          }
+          InvocationTimeLimitSeconds = {
+            Value = "8"
+          }
           LambdaInvocationAttributes = {
-            userInput = "$.Attributes.userInput"
+            userInput = {
+              Value         = "$.Attributes.userInput"
+              ValueType     = "Attribute"
+              AttributeType = "UserDefined"
+            }
+          }
+          ResponseValidation = {
+            ResponseType = "STRING_MAP"
           }
         }
         Transitions = {
-          Success = "speak-response"
-          Error   = "error-prompt"
+          NextAction = "speak-response"
+          Errors = [
+            {
+              NextAction = "error-prompt"
+              ErrorType  = "NoMatchingError"
+            }
+          ]
+          Conditions = []
         }
       },
-
-      # Step 3: Speak the Lambda response to the caller
       {
         Identifier = "speak-response"
         Type       = "MessageParticipant"
         Parameters = {
-          Text = "$.External.response"
-          TextToSpeechType = "text"
-          LanguageCode     = "en-US"
-          VoiceId          = "Joanna"
+          Text = {
+            Value         = "$.External.response"
+            ValueType     = "Attribute"
+            AttributeType = "External"
+          }
+          SSML = {
+            Value = "false"
+          }
+          LanguageCode = {
+            Value = "en-US"
+          }
         }
         Transitions = {
-          Success = "get-customer-input"
-          Error   = "error-prompt"
+          NextAction = "get-customer-input"
+          Errors = [
+            {
+              NextAction = "error-prompt"
+              ErrorType  = "NoMatchingError"
+            }
+          ]
+          Conditions = []
         }
       },
-
-      # Step 4: Listen for caller input (speech)
       {
         Identifier = "get-customer-input"
         Type       = "GetParticipantInput"
         Parameters = {
-          Text             = " "
-          InputTimeLimitSeconds = "10"
-          TextToSpeechType = "text"
-          LanguageCode     = "en-US"
-          VoiceId          = "Joanna"
-          SpeechParameters = {
-            EndpointSilenceDurationMs = "2000"
+          Text = {
+            Value = "How else can I help you?"
+          }
+          SSML = {
+            Value = "false"
+          }
+          LanguageCode = {
+            Value = "en-US"
+          }
+          Timeout = {
+            Value = "8"
+          }
+          MaxDigits = {
+            Value = "0"
+          }
+          InputTimeLimitSeconds = {
+            Value = "8"
           }
         }
         Transitions = {
-          Success  = "store-input"
-          NoMatch  = "invoke-lambda"
-          Error    = "error-prompt"
-          Timeout  = "invoke-lambda"
+          NextAction = "store-input"
+          Errors = [
+            {
+              NextAction = "invoke-lambda"
+              ErrorType  = "InputTimeLimitExceeded"
+            },
+            {
+              NextAction = "error-prompt"
+              ErrorType  = "NoMatchingError"
+            }
+          ]
+          Conditions = []
         }
       },
-
-      # Step 5: Store caller input as contact attribute, loop back to Lambda
       {
         Identifier = "store-input"
         Type       = "UpdateContactAttributes"
         Parameters = {
           Attributes = {
-            userInput = "$.CustomerInput.SpeechResult"
+            userInput = {
+              Value         = "$.CustomerInput.SpeechResult"
+              ValueType     = "Attribute"
+              AttributeType = "System"
+            }
           }
         }
         Transitions = {
-          Success = "invoke-lambda"
-          Error   = "error-prompt"
+          NextAction = "invoke-lambda"
+          Errors     = []
+          Conditions = []
         }
       },
-
-      # Error handler — play apology and disconnect
       {
         Identifier = "error-prompt"
         Type       = "MessageParticipant"
         Parameters = {
-          Text             = "I'm sorry, something went wrong. Please call back and we'll be happy to help."
-          TextToSpeechType = "text"
-          LanguageCode     = "en-US"
-          VoiceId          = "Joanna"
+          Text = {
+            Value = "I am sorry, something went wrong. Please call back and we will be happy to help."
+          }
+          SSML = {
+            Value = "false"
+          }
+          LanguageCode = {
+            Value = "en-US"
+          }
         }
         Transitions = {
-          Success = "disconnect"
-          Error   = "disconnect"
+          NextAction = "disconnect"
+          Errors = [
+            {
+              NextAction = "disconnect"
+              ErrorType  = "NoMatchingError"
+            }
+          ]
+          Conditions = []
         }
       },
-
-      # Disconnect
       {
-        Identifier = "disconnect"
-        Type       = "DisconnectParticipant"
-        Parameters = {}
+        Identifier  = "disconnect"
+        Type        = "DisconnectParticipant"
+        Parameters  = {}
         Transitions = {}
       }
     ]

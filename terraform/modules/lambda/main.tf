@@ -28,6 +28,15 @@ resource "aws_lambda_function" "call_handler" {
 
   layers = var.create_layer ? [aws_lambda_layer_version.shared[0].arn] : []
 
+  lifecycle {
+    ignore_changes = [
+      # S3 object version managed by CI/CD deploy step
+      s3_object_version,
+      # Layer version managed by deploy script, not Terraform
+      layers,
+    ]
+  }
+
   environment {
     variables = {
       ENVIRONMENT         = var.environment
@@ -57,13 +66,6 @@ resource "aws_lambda_function" "call_handler" {
   ]
 
   tags = var.tags
-
-  lifecycle {
-    ignore_changes = [
-      # S3 object version managed by CI/CD deploy step
-      s3_object_version,
-    ]
-  }
 }
 
 # Allow Amazon Connect to invoke the call handler

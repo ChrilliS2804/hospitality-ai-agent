@@ -64,10 +64,13 @@ data "aws_iam_policy_document" "call_handler_policy" {
     actions = [
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
+      "bedrock:GetInferenceProfile",
+      "bedrock:ListInferenceProfiles",
     ]
     resources = [
       "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.*",
       "arn:aws:bedrock:eu:${var.aws_account_id}:inference-profile/eu.anthropic.*",
+      "arn:aws:bedrock:*::foundation-model/anthropic.*",
     ]
   }
 

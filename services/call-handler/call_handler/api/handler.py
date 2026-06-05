@@ -1,8 +1,12 @@
-"""Call Handler Lambda — entry point for Amazon Connect invocations.
+"""Call Handler Lambda — entry point for Amazon Connect and Lex V2 invocations.
 
 Sprint 2: Multi-turn conversation powered by Bedrock Claude.
-Each invocation = one conversational turn. Connect loops back on each
-caller utterance, enabling natural back-and-forth dialogue.
+
+This Lambda is invoked in two ways:
+1. Directly by Connect Contact Flow (first turn — greeting)
+2. By Lex V2 FallbackIntent fulfillment (subsequent turns — speech transcribed)
+
+The handler detects the event source and routes accordingly.
 """
 
 from __future__ import annotations
@@ -25,33 +29,154 @@ logger = get_logger("call-handler")
 
 _ERROR_RESPONSE = (
     "Es tut mir leid, es gibt gerade ein technisches Problem. "
-    "Bitte rufen Sie später noch einmal an."
+    "Bitte rufen Sie spaeter noch einmal an."
 )
 
 _GREETING = (
-    "Hallo, vielen Dank für Ihren Anruf. Ich bin Ihr KI-Assistent. "
-    "Ich kann Ihnen helfen, eine Reservierung vorzunehmen, zu ändern "
+    "Hallo, vielen Dank fuer Ihren Anruf. Ich bin Ihr KI-Assistent. "
+    "Ich kann Ihnen helfen, eine Reservierung vorzunehmen, zu aendern "
     "oder zu stornieren, oder Fragen zu unserem Restaurant beantworten. "
     "Wie kann ich Ihnen helfen?"
 )
 
 
+def _is_lex_event(event: dict[str, Any]) -> bool:
+    """Detect if this is a Lex V2 fulfillment event."""
+    return "sessionState" in event and "inputTranscript" in event
+
+
+def _handle_lex_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Handle a Lex V2 FallbackIntent fulfillment event.
+
+    Lex V2 event structure:
+    {
+        "sessionId": "...",
+        "inputTranscript": "what the caller said",
+        "sessionState": {
+            "intent": {"name": "FallbackIntent", ...},
+            "sessionAttributes": {...}
+        },
+        ...
+    }
+
+    Returns Lex V2 response format with dialogAction + messages.
+    """
+    session_id = event.get("sessionId", "unknown")
+    user_input = event.get("inputTranscript", "")
+    session_attrs = event.get("sessionState", {}).get("sessionAttributes", {})
+    tenant_id = session_attrs.get("tenant_id", "default")
+
+    logger.bind(session_id=session_id, tenant_id=tenant_id)
+    logger.info("Lex fulfillment turn", has_input=bool(user_input))
+
+    repo = DynamoDBSessionRepository()
+
+    # Load or create session
+    session = repo.get(session_id)
+    if session is None:
+        caller_phone = session_attrs.get("caller_phone", "")
+        session = ConversationSession(
+            session_id=session_id,
+            tenant_id=tenant_id,
+            caller_phone=caller_phone,
+        )
+        logger.info("New session created from Lex event")
+
+    # If completed/transferred, close the conversation
+    if session.status in (SessionStatus.COMPLETED, SessionStatus.TRANSFERRED):
+        response_text = "Vielen Dank fuer Ihren Anruf. Auf Wiederhoeren!"
+        return _lex_close_response(event, response_text, session_attrs)
+
+    # Process turn through conversation engine
+    try:
+        engine = ConversationEngine()
+        response_text = engine.process_turn(session, user_input)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Conversation engine error",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+        )
+        response_text = (
+            "Entschuldigung, ich habe gerade ein Problem. "
+            "Koennen Sie das bitte wiederholen?"
+        )
+        session.add_turn("assistant", response_text)
+
+    repo.save(session)
+
+    # Determine if we should close or elicit more input
+    if session.status in (SessionStatus.COMPLETED, SessionStatus.TRANSFERRED):
+        return _lex_close_response(event, response_text, session_attrs)
+
+    return _lex_elicit_response(event, response_text, session_attrs)
+
+
+def _lex_elicit_response(
+    event: dict[str, Any],
+    message: str,
+    session_attrs: dict[str, str],
+) -> dict[str, Any]:
+    """Return Lex response that speaks the message and waits for more input."""
+    return {
+        "sessionState": {
+            "dialogAction": {
+                "type": "ElicitIntent",
+            },
+            "intent": {
+                "name": "FallbackIntent",
+                "state": "InProgress",
+            },
+            "sessionAttributes": session_attrs,
+        },
+        "messages": [
+            {
+                "contentType": "PlainText",
+                "content": message,
+            }
+        ],
+    }
+
+
+def _lex_close_response(
+    event: dict[str, Any],
+    message: str,
+    session_attrs: dict[str, str],
+) -> dict[str, Any]:
+    """Return Lex response that speaks the message and ends the conversation."""
+    return {
+        "sessionState": {
+            "dialogAction": {
+                "type": "Close",
+            },
+            "intent": {
+                "name": "FallbackIntent",
+                "state": "Fulfilled",
+            },
+            "sessionAttributes": session_attrs,
+        },
+        "messages": [
+            {
+                "contentType": "PlainText",
+                "content": message,
+            }
+        ],
+    }
+
+
 @lambda_handler_middleware(service="call-handler")
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Main Lambda handler invoked by Amazon Connect.
+    """Main Lambda handler — routes between Connect direct and Lex V2 events."""
 
-    Drives one turn of the multi-turn conversation:
-    1. Parse Connect event
-    2. Load or create session
-    3. If first turn with no input → return greeting
-    4. Otherwise → call Bedrock via ConversationEngine
-    5. Save session and return response
-    """
-    # Parse and validate the Connect event
+    # Route based on event source
+    if _is_lex_event(event):
+        return _handle_lex_event(event)
+
+    # Connect direct invocation (first turn / greeting)
     try:
         connect_event = ConnectEvent(**event)
     except ValidationError as exc:
-        logger.error("Invalid Connect event structure", validation_errors=str(exc))
+        logger.error("Invalid event structure", validation_errors=str(exc))
         return ConnectResponse(response=_ERROR_RESPONSE, action="end").to_dict()
 
     session_id = connect_event.session_id
@@ -60,7 +185,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     user_input = connect_event.user_input
 
     logger.bind(session_id=session_id, tenant_id=tenant_id)
-    logger.info("Inbound call turn", caller_phone=caller_phone, has_input=bool(user_input))
+    logger.info("Connect direct turn", caller_phone=caller_phone, has_input=bool(user_input))
 
     repo = DynamoDBSessionRepository()
 
@@ -76,13 +201,13 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
         logger.info("New session created")
 
-    # If session is already completed or transferred, return a closing message
+    # If session is already completed or transferred
     if session.status in (SessionStatus.COMPLETED, SessionStatus.TRANSFERRED):
-        response_text = "Vielen Dank für Ihren Anruf. Auf Wiederhören!"
+        response_text = "Vielen Dank fuer Ihren Anruf. Auf Wiederhoeren!"
         repo.save(session)
         return ConnectResponse(response=response_text, action="end").to_dict()
 
-    # First turn with no user input → return greeting
+    # First turn with no user input — return greeting
     if is_new_session and not user_input:
         response_text = _GREETING
         session.add_turn("assistant", response_text)
@@ -90,23 +215,18 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         logger.info("Returning greeting (first turn)")
         return ConnectResponse(response=response_text, action="continue").to_dict()
 
-    # Process turn through conversation engine (Bedrock)
-    try:
-        engine = ConversationEngine()
-        response_text = engine.process_turn(session, user_input)
-    except Exception as exc:  # noqa: BLE001
-        logger.error(
-            "Conversation engine error",
-            error_type=type(exc).__name__,
-            error_message=str(exc),
-        )
-        response_text = (
-            "Entschuldigung, ich habe gerade ein Problem. "
-            "Kann ich Ihnen anders helfen?"
-        )
-        session.add_turn("assistant", response_text)
+    # If Connect passes user input directly (without Lex), process it
+    if user_input:
+        try:
+            engine = ConversationEngine()
+            response_text = engine.process_turn(session, user_input)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Conversation engine error", error_message=str(exc))
+            response_text = "Entschuldigung, koennen Sie das bitte wiederholen?"
+            session.add_turn("assistant", response_text)
+    else:
+        response_text = _GREETING
 
-    # Determine action based on session status
     action = "continue"
     if session.status == SessionStatus.COMPLETED:
         action = "end"
@@ -114,12 +234,4 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         action = "transfer"
 
     repo.save(session)
-
-    logger.info(
-        "Returning response",
-        action=action,
-        intent=session.intent.value,
-        turn_count=session.turn_count,
-    )
-
     return ConnectResponse(response=response_text, action=action).to_dict()

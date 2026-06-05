@@ -154,14 +154,8 @@ module "connect" {
   tags                           = local.common_tags
 }
 
-module "lex" {
-  source                  = "../../modules/lex"
-  name_prefix             = "hospitality-ai-${var.environment}"
-  aws_region              = var.aws_region
-  aws_account_id          = var.aws_account_id
-  call_handler_lambda_arn = module.lambda.call_handler_arn
-  tags                    = local.common_tags
-}
+# Lex V2 bot is created via CLI (see docs/runbooks/lex-bot-setup.md)
+# Terraform Lex V2 support is incomplete for bot aliases.
 
 # ── Outputs ───────────────────────────────────────────────────────────────────
 
@@ -179,12 +173,4 @@ output "connect_instance_id" {
 
 output "lambda_packages_bucket" {
   value = aws_s3_bucket.lambda_packages.bucket
-}
-
-output "lex_bot_id" {
-  value = module.lex.bot_id
-}
-
-output "lex_bot_alias_id" {
-  value = module.lex.bot_alias_id
 }

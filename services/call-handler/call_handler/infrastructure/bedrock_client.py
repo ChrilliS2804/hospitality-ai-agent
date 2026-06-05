@@ -25,7 +25,7 @@ logger = get_logger("call-handler")
 # Model ID — configurable via environment variable
 _MODEL_ID = os.environ.get(
     "BEDROCK_MODEL_ID",
-    "anthropic.claude-haiku-4-5-20251001-v1:0",
+    "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
 )
 
 # Max tokens for response generation

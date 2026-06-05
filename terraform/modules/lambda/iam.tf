@@ -57,7 +57,7 @@ data "aws_iam_policy_document" "call_handler_policy" {
     ]
   }
 
-  # Bedrock — invoke model for NLU
+  # Bedrock — invoke model for NLU (cross-region inference profile)
   statement {
     sid    = "BedrockInvoke"
     effect = "Allow"
@@ -65,7 +65,10 @@ data "aws_iam_policy_document" "call_handler_policy" {
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
     ]
-    resources = ["arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.*"]
+    resources = [
+      "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.*",
+      "arn:aws:bedrock:eu:${var.aws_account_id}:inference-profile/eu.anthropic.*",
+    ]
   }
 
   # Lambda — invoke downstream services

@@ -36,7 +36,7 @@ resource "aws_lambda_function" "call_handler" {
       LOG_LEVEL           = var.environment == "prod" ? "INFO" : "DEBUG"
       XRAY_ENABLED        = tostring(var.xray_enabled)
       SESSION_TTL_SECONDS = "86400"
-      BEDROCK_MODEL_ID    = "anthropic.claude-haiku-4-5-20251001-v1:0"
+      BEDROCK_MODEL_ID    = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
       BEDROCK_MAX_TOKENS  = "1024"
       BEDROCK_TEMPERATURE = "0.3"
     }

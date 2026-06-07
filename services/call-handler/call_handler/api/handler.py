@@ -33,10 +33,11 @@ _ERROR_RESPONSE = (
 )
 
 _GREETING = (
-    "Hallo, vielen Dank fuer Ihren Anruf. Ich bin Ihr KI-Assistent. "
-    "Ich kann Ihnen helfen, eine Reservierung vorzunehmen, zu aendern "
-    "oder zu stornieren, oder Fragen zu unserem Restaurant beantworten. "
-    "Wie kann ich Ihnen helfen?"
+    "Herzlichen Willkommen im Gasthaus Schwan in Riedenburg. "
+    "Ich bin ein KI-Assistent und kann einige Aufgaben uebernehmen. "
+    "Von Tischreservierungen ueber Essensbestellungen bis hin zu "
+    "Auskuenften oder Zimmerreservierungen. "
+    "Sagen Sie mir doch was Sie brauchen."
 )
 
 
@@ -66,17 +67,21 @@ def _handle_lex_event(event: dict[str, Any]) -> dict[str, Any]:
     session_attrs = event.get("sessionState", {}).get("sessionAttributes", {})
     tenant_id = session_attrs.get("tenant_id", "default")
 
-    logger.bind(session_id=session_id, tenant_id=tenant_id)
+    # Use contactId from session attributes as stable key across Lex re-entries
+    # Falls back to Lex sessionId if contactId not provided
+    stable_session_id = session_attrs.get("contactId", session_id)
+
+    logger.bind(session_id=stable_session_id, tenant_id=tenant_id)
     logger.info("Lex fulfillment turn", has_input=bool(user_input))
 
     repo = DynamoDBSessionRepository()
 
     # Load or create session
-    session = repo.get(session_id)
+    session = repo.get(stable_session_id)
     if session is None:
         caller_phone = session_attrs.get("caller_phone", "")
         session = ConversationSession(
-            session_id=session_id,
+            session_id=stable_session_id,
             tenant_id=tenant_id,
             caller_phone=caller_phone,
         )

@@ -69,7 +69,8 @@ def main() -> None:
         )
         bot_id = bot["botId"]
         print(f"  Bot created: {bot_id}")
-    except lex.exceptions.ConflictException:
+        time.sleep(15)  # Wait for bot to become Available
+    except (lex.exceptions.ConflictException, lex.exceptions.PreconditionFailedException):
         # Bot already exists, find it
         bots = lex.list_bots(filters=[{"name": "BotName", "values": [BOT_NAME], "operator": "EQ"}])
         bot_id = bots["botSummaries"][0]["botId"]
@@ -86,8 +87,24 @@ def main() -> None:
             voiceSettings={"voiceId": "Vicki", "engine": "neural"},
         )
         print("  Locale created")
-    except lex.exceptions.ConflictException:
-        print("  Locale already exists")
+    except (lex.exceptions.ConflictException, lex.exceptions.PreconditionFailedException,
+            lex.exceptions.ServiceQuotaExceededException):
+        print("  Locale already exists or bot not ready, continuing...")
+    except Exception as e:
+        if "ValidationException" in str(type(e).__name__):
+            print("  Bot still creating, waiting 15s...")
+            time.sleep(15)
+            try:
+                lex.create_bot_locale(
+                    botId=bot_id,
+                    botVersion="DRAFT",
+                    localeId=LOCALE,
+                    nluIntentConfidenceThreshold=0.4,
+                    voiceSettings={"voiceId": "Vicki", "engine": "neural"},
+                )
+                print("  Locale created (retry)")
+            except Exception:
+                print("  Locale may already exist, continuing...")
 
     # Step 4: Wait for locale to be ready
     print("Waiting for locale to be ready...")
@@ -119,6 +136,25 @@ def main() -> None:
         )
         print(f"  FallbackIntent updated: {fallback_id}")
 
+    # Step 5b: Create a dummy intent (Lex requires at least one custom intent with utterances)
+    print("Creating dummy CatchAll intent...")
+    try:
+        dummy = lex.create_intent(
+            botId=bot_id,
+            botVersion="DRAFT",
+            localeId=LOCALE,
+            intentName="CatchAllIntent",
+            sampleUtterances=[
+                {"utterance": "xyzzy_placeholder_never_match"},
+            ],
+        )
+        print(f"  CatchAll intent created: {dummy['intentId']}")
+    except Exception as e:
+        if "already exists" in str(e) or "Conflict" in str(type(e).__name__):
+            print("  CatchAll intent already exists")
+        else:
+            print(f"  CatchAll intent issue (continuing): {e}")
+
     # Step 6: Build the locale
     print("Building bot locale...")
     lex.build_bot_locale(botId=bot_id, botVersion="DRAFT", localeId=LOCALE)
@@ -137,21 +173,35 @@ def main() -> None:
 
     # Step 7: Create bot version
     print("Creating bot version...")
-    version = lex.create_bot_version(
-        botId=bot_id,
-        botVersionLocaleSpecification={
-            LOCALE: {"sourceBotVersion": "DRAFT"}
-        },
-    )
-    bot_version = version["botVersion"]
-    print(f"  Version created: {bot_version}")
+    try:
+        version = lex.create_bot_version(
+            botId=bot_id,
+            botVersionLocaleSpecification={
+                LOCALE: {"sourceBotVersion": "DRAFT"}
+            },
+        )
+        bot_version = version["botVersion"]
+        print(f"  Version created: {bot_version}")
+    except Exception as e:
+        print(f"  Version creation issue: {e}")
+        # Use version 1 as fallback
+        bot_version = "1"
+        print(f"  Using version: {bot_version}")
 
     # Wait for version to be available
+    print("Waiting for version to be available...")
+    time.sleep(5)
     for _ in range(30):
-        v = lex.describe_bot_version(botId=bot_id, botVersion=bot_version)
-        if v["botStatus"] == "Available":
-            break
-        time.sleep(2)
+        try:
+            v = lex.describe_bot_version(botId=bot_id, botVersion=bot_version)
+            if v["botStatus"] == "Available":
+                print(f"  Version {bot_version} is available")
+                break
+        except Exception:
+            pass
+        time.sleep(3)
+    else:
+        print("  WARNING: Version may not be ready yet, continuing anyway...")
 
     # Step 8: Create bot alias with Lambda
     print("Creating bot alias 'live'...")
